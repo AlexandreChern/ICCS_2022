@@ -201,8 +201,8 @@ for k in 6:13
 
     b = -2π^2*u(x,y')[:] + SAT_W_r*g_W + SAT_E_r*g_E + SAT_S_r*g_S + SAT_N_r*g_N;
 
-    A = H_tilde*A;
-    b = H_tilde*b;
+    A = - H_tilde*A;
+    b = - H_tilde*b;
 
     @show nnz(A) * sizeof(Float64)
 
@@ -391,7 +391,7 @@ function check_richardson(A,ω)
 end
 
 
-function modified_richardson(A,b;ω=-0.15)
+function modified_richardson(A,b;ω=0.15)
     x = zeros(length(b))
     # ω = -0.15
     count = 0
@@ -399,7 +399,7 @@ function modified_richardson(A,b;ω=-0.15)
     for _ in 1:100
         iter_norm = norm(A*x-b)
         append!(norms,iter_norm)
-        if iter_norm >= 1e-6
+        if iter_norm >= 1e-6 * norms[1]
             count += 1
             x = x + ω*(b- A*x)
         end
@@ -418,7 +418,7 @@ function jacobi_diy(A,b)
     for _ in 1:100
         iter_norm = norm(A*x-b)
         append!(norms,iter_norm)
-        if iter_norm >= 1e-6
+        if iter_norm >= 1e-6 * norms[1]
             count += 1
             x = D\(b - LU*x)
         end
@@ -426,7 +426,7 @@ function jacobi_diy(A,b)
     return (x,count,norms)
 end
 
-function test(A,b;ω=-0.15)
+function test(A,b;ω=1/13)
     (x_j,count_j,norms_j) = jacobi_diy(A,b)
     (x_r,count_r,norms_r) = modified_richardson(A,b,ω=ω)
     plot(norms_j)
