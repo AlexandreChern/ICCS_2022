@@ -190,7 +190,7 @@ let
     A_d = CUDA.CUSPARSE.CuSparseMatrixCSC(A);
     b_d = CuArray(b);
 
-    for _ = 1:100
+    for _ = 1:10000
         A_d * b_d
     end
 
