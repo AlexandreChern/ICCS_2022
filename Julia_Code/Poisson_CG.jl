@@ -386,3 +386,49 @@ for k in 6:13
    
 end
 
+function check_richardson(A,ω)
+    return norm(sparse(I,size(A)) - ω*A)
+end
+
+
+function modified_richardson(A,b;ω=-0.15)
+    x = zeros(length(b))
+    # ω = -0.15
+    count = 0
+    norms = []
+    for _ in 1:100
+        iter_norm = norm(A*x-b)
+        append!(norms,iter_norm)
+        if iter_norm >= 1e-6
+            count += 1
+            x = x + ω*(b- A*x)
+        end
+    end
+    return (x,count,norms)
+end
+
+
+function jacobi_diy(A,b)
+    x = zeros(length(b))
+    D = Diagonal(A)
+    LU = A - D
+    # ω = -0.15
+    count = 0
+    norms = []
+    for _ in 1:100
+        iter_norm = norm(A*x-b)
+        append!(norms,iter_norm)
+        if iter_norm >= 1e-6
+            count += 1
+            x = D\(b - LU*x)
+        end
+    end
+    return (x,count,norms)
+end
+
+function test(A,b;ω=-0.15)
+    (x_j,count_j,norms_j) = jacobi_diy(A,b)
+    (x_r,count_r,norms_r) = modified_richardson(A,b,ω=ω)
+    plot(norms_j)
+    plot!(norms_r)
+end
