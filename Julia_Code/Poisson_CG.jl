@@ -387,7 +387,7 @@ for k in 6:13
 end
 
 function check_richardson(A,ω)
-    return norm(sparse(I,size(A)) - ω*A)
+    return opnorm(Matrix(I,size(A)) - ω*A)
 end
 
 
