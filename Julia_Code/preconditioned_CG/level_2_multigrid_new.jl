@@ -387,7 +387,7 @@ function precond_matrix(A, b; m=3, solver="jacobi",p=2)
         R = ω*(2-ω)*(P+ω*U)\Matrix(P*X)
         R0 = ω*(2-ω)*(P+ω*U)\Matrix(P*X)
     elseif solver == "modified_richardson"
-        
+
     else   
         # wait to be implemented
     end
@@ -409,8 +409,7 @@ end
 
 function mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,p=2)
     r = b - A * x;
-    (M, R, H, I_p, A_2h, I_r, IN) = precond_matrix(A,b;m=nu,solver="jacobi",p=p)
-    rnew = zeros(length(r))
+    # (M, R, H, I_p, A_2h, I_r, IN) = precond_matrix(A,b;m=nu,solver="jacobi",p=p)
     z = Two_level_multigrid(A,r;nu=nu,NUM_V_CYCLES=1)[1]
     # z = M*r
     p = z;
