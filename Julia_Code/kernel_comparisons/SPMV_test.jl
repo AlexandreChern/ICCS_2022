@@ -183,8 +183,8 @@ let
 
     b = -2π^2*u(x,y')[:] + SAT_W_r*g_W + SAT_E_r*g_E + SAT_S_r*g_S + SAT_N_r*g_N;
 
-    A = H_tilde*A;
-    b = H_tilde*b;
+    A = - H_tilde*A;
+    b = - H_tilde*b;
 
 
     A_d = CUDA.CUSPARSE.CuSparseMatrixCSC(A);
