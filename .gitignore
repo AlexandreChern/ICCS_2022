@@ -35,3 +35,8 @@
 *.nsys-rep
 *.sqlite
 *.qdrep
+
+# Batch files
+*.batch
+*.out
+*.err
