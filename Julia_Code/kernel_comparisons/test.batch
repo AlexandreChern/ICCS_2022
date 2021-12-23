@@ -1,4 +1,3 @@
-
 #!/bin/bash
 #SBATCH --job-name=kernel_benchmarking     ### Job Name
 #SBATCH --partition=cisds       ### Similar to a queue in PBS
