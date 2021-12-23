@@ -2,7 +2,9 @@
 #!/bin/bash
 #SBATCH --job-name=GPUjob     ### Job Name
 #SBATCH --partition=cisds       ### Similar to a queue in PBS
-#SBATCH --time=1-00:00:00     ### Wall clock time limit in Days-HH:MM:SS
+#SBATCH --time=0-02:00:00     ### Wall clock time limit in Days-HH:MM:SS
+#SBATCH --output=kernel_benchmarking.out   ### file in which to store job stdout
+#SBATCH --error=kernel_benchmarking.err    ### file in which to store job stderr
 #SBATCH --nodes=1             ### Node count required for the job
 #SBATCH --ntasks-per-node=1   ### Nuber of tasks to be launched per Node
 #SBATCH --gres=gpu:1          ### General REServation of gpu:number of gpus
