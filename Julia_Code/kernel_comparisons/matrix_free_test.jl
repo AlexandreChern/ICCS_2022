@@ -3,6 +3,11 @@ include("../deriv_ops_new.jl")
 include("../split_matrix_free_dev.jl")
 include("../split_matrix_free.jl")
 
+if length(ARGS) != 0
+    level = parse(Int,ARGS[1])
+else
+    level = 10
+end
 
 using LinearAlgebra
 using SparseArrays
@@ -240,7 +245,7 @@ h_list_y = [1/2^1, 1/2^2, 1/2^3, 1/2^4, 1/2^5, 1/2^6, 1/2^7, 1/2^8, 1/2^9, 1/2^1
 
 
 let 
-    k = 10
+    k = level
     i = j = k 
 
     hx = h_list_x[i];

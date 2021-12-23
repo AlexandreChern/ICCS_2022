@@ -1,0 +1,17 @@
+
+#!/bin/bash
+#SBATCH --job-name=GPUjob     ### Job Name
+#SBATCH --partition=cisds       ### Similar to a queue in PBS
+#SBATCH --time=1-00:00:00     ### Wall clock time limit in Days-HH:MM:SS
+#SBATCH --nodes=1             ### Node count required for the job
+#SBATCH --ntasks-per-node=1   ### Nuber of tasks to be launched per Node
+#SBATCH --gres=gpu:1          ### General REServation of gpu:number of gpus
+#SBATCH --account=erickson    ### Account used for job submission
+ 
+module load cuda/10.1
+module load julia
+
+for N in {4,5,6}
+do
+    nvprof julia matrix_free_test.jl $N
+done
