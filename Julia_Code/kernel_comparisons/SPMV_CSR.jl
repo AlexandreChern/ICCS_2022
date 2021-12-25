@@ -5,8 +5,10 @@ include("../split_matrix_free.jl")
 
 if length(ARGS) != 0
     level = parse(Int,ARGS[1])
+    Iterations = parse(Int,ARGS[2])
 else
     level = 10
+    Iterations = 10000
 end
 
 using LinearAlgebra
@@ -195,7 +197,7 @@ let
     A_d = CUDA.CUSPARSE.CuSparseMatrixCSR(A);
     b_d = CuArray(b);
 
-    for _ = 1:10000
+    for _ = 1:Iterations
         A_d * b_d
     end
     CUDA.memory_status()

@@ -5,8 +5,10 @@ include("../split_matrix_free.jl")
 
 if length(ARGS) != 0
     level = parse(Int,ARGS[1])
+    Iterations = parse(Int,ARGS[2])
 else
     level = 10
+    Iterations = 10000
 end
 
 using LinearAlgebra
@@ -318,10 +320,10 @@ let
     b_reshaped_GPU = CuArray(b_reshaped)
     x_reshaped_GPU = CuArray(b_reshaped_GPU)
 
-    for _ = 1:10000
+    for _ = 1:Iterations
         matrix_free_A_full_GPU(b_reshaped_GPU,x_reshaped_GPU)
     end
-    
+
     CUDA.memory_status()
     CUDA.reclaim()
 
