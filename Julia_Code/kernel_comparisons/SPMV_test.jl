@@ -191,13 +191,14 @@ let
     A = - H_tilde*A;
     b = - H_tilde*b;
 
-
+    CUDA.reclaim()
     A_d = CUDA.CUSPARSE.CuSparseMatrixCSC(A);
     b_d = CuArray(b);
 
     for _ = 1:10000
         A_d * b_d
     end
-
+    CUDA.memory_status()
+    CUDA.reclaim()
     return 0
 end
