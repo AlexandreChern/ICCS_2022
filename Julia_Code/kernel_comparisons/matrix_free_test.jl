@@ -325,6 +325,8 @@ let
     end
 
     CUDA.memory_status()
+    CUDA.unsafe_free!(b_reshaped_GPU)
+    CUDA.unsafe_free!(x_reshaped_GPU)
     CUDA.reclaim()
 
     return 0

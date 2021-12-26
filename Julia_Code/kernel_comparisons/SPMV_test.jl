@@ -201,6 +201,8 @@ let
         A_d * b_d
     end
     CUDA.memory_status()
+    CUDA.unsafe_free!(A_d)
+    CUDA.unsafe_free!(b_d)
     CUDA.reclaim()
     return 0
 end
