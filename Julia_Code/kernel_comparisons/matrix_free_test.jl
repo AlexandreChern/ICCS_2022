@@ -312,8 +312,8 @@ let
     b = H_tilde*b;
 
 
-    A_d = CUDA.CUSPARSE.CuSparseMatrixCSC(A);
-    b_d = CuArray(b);
+    # A_d = CUDA.CUSPARSE.CuSparseMatrixCSC(A);
+    # b_d = CuArray(b);
     b_reshaped = reshape(b,Nx,Ny)
 
     CUDA.reclaim()
