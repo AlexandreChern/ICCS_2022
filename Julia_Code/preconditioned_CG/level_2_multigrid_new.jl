@@ -230,8 +230,8 @@ function prolongation_2d(N)
 end
 
 function restriction_2d(N)
-    # restriction_1d = restriction_matrix_normal(N)
-    restriction_1d = restriction_matrix(N)
+    restriction_1d = restriction_matrix_normal(N)
+    # restriction_1d = restriction_matrix(N)
     restriction_2d = kron(restriction_1d,restriction_1d)
     return restriction_2d
 end
