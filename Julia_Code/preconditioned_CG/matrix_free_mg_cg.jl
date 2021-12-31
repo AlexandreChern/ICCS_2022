@@ -57,7 +57,36 @@ end
 
 function matrix_free_Two_level_multigrid(b_GPU;nu=3,NUM_V_CYCLES=1,p=2)
     (Nx,Ny) = size(b_GPU)
+    level = Int(log(2,Nx-1))
+    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=p)
+    v_values_GPU = Dict(1=>CuArray(zeros(Nx,Ny)))
+    v_values_out_GPU = Dict(1=>CuArray(zeros(Nx,Ny)))
+    Av_values_out_GPU = Dict(1=>CuArray(zeros(Nx,Ny)))
+    rhs_values_GPU = Dict(1=>b_GPU)
+    N_values = Dict(1=>Nx)
+    N_values[2] = div(Nx+1,2)
+    f_GPU = Dict(1=>CuArray(zeros(Nx_2h,Ny_2h)))
+    e_GPU = Dict(1=>CuArray(zeros(Nx,Ny)))
+    
+    for cycle_number in 1:NUM_V_CYCLES
+        matrix_free_richardson(v_values_GPU[1],v_values_out_GPU[1],rhs_values_GPU[1];maxiter=nu)
+        matrix_free_A_full_GPU(v_values_out_GPU[1],Av_values_out_GPU[1])
+        r_GPU = b_GPU + Av_values_out_GPU[1]
+        matrix_free_restriction_2d(r_GPU,f_GPU[1])
+        v_values_GPU[2] = reshape(CuArray(A_2h) \ f_GPU[1][:],Nx_2h,Ny_2h)
+        matrix_free_prolongation_2d(v_values_GPU[2],e_GPU[1])
+        v_values_GPU[1] .+= e_GPU[1]
+        matrix_free_richardson(v_values_GPU[1],v_values_out_GPU[1],rhs_values_GPU[1];maxiter=nu)
+    end
+    matrix_free_A_full_GPU(v_values_out_GPU[1],Av_values_out_GPU[1])
+    return (v_values_out_GPU[1],norm(-Av_values_out_GPU[1]-b_GPU))
 end
+
+
+function matrix_free_MGCG(b_GPU)
+
+end
+
 
 let
     level = 2
