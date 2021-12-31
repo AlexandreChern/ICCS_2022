@@ -8,11 +8,18 @@
 #SBATCH --ntasks-per-node=1   ### Nuber of tasks to be launched per Node
 #SBATCH --gres=gpu:1          ### General REServation of gpu:number of gpus
 #SBATCH --account=erickson    ### Account used for job submission
- 
+#SBATCH --mem=192000              ### memory limit per node, in MB
+
+
 module load cuda/10.1
 module load julia
 
-for N in {4,5,6}
+nvidia-smi
+
+readonly iterations=1
+for N in {4,5,6,7,8,9,10,11,12,13}
 do
-    nvprof julia matrix_free_test.jl $N
+    nvprof julia SPMV_test.jl $N $iterations
+    nvprof julia SPMV_CSR.jl $N $iterations
+    nvprof julia matrix_free_test.jl $N $iterations
 done
