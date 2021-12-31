@@ -330,7 +330,7 @@ function modified_richardson!(x,A,b;maxiter=3,ω=0.15)
     end
 end
 
-function Two_level_multigrid(A,b,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,p=2)
+function Two_level_multigrid(A,b,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
     v_values = Dict(1=>zeros(Nx*Ny))
     rhs_values = Dict(1 => b)
     N_values = Dict(1 => Nx)
@@ -356,7 +356,7 @@ function Two_level_multigrid(A,b,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,p=2)
     return (v_values[1],norm(A * v_values[1] - b))
 end
 
-function precond_matrix(A, b; m=3, solver="jacobi",p=2)
+function precond_matrix(A, b; m=3, solver="jacobi",SBPp=2)
     #pre and post smoothing 
     N = length(b)
     Nx = Ny = Integer((sqrt(N)))
@@ -403,10 +403,10 @@ function precond_matrix(A, b; m=3, solver="jacobi",p=2)
     return (M, R, H, I_p, A_2h, I_r, IN)
 end
 
-function mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,p=2)
+function mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,SBPp=2)
     Nx = Ny = Int(sqrt(length(b)))
     level = Int(log(2,Nx-1))
-    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=p);
+    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp);
     A_2h = lu(A_2h)
     r = b - A * x;
     # (M, R, H, I_p, A_2h, I_r, IN) = precond_matrix(A,b;m=nu,solver="jacobi",p=p)
@@ -461,7 +461,7 @@ function test_preconditioned_CG(;level=6,nu=3,ω=2/3,SBPp=2)
     (M, R, H, I_p, A_2h, I_r, IN) = precond_matrix(A,b;m=nu,solver="jacobi")
     cond_A_M = cond(M*A)
     x = zeros(Nx*Ny);
-    iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,p=p)
+    iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,p=SBPp)
     error_mg_cg_bound_coef = (sqrt(cond_A_M) - 1) / (sqrt(cond_A_M) + 1)
     error_mg_cg_bound = error_mg_cg[1] .* 2 .* error_mg_cg_bound_coef .^ (0:1:length(error_mg_cg)-1)
     plot(log.(10,error_mg_cg),label="error_mg_cg")
