@@ -29,15 +29,6 @@ function matrix_free_prolongation_2d(idata,odata)
     return nothing
 end
 
-function matrix_free_prolongation_2d_GPU(idata,odata)
-    (Nx,Ny) = size(idata)
-    TILE_DIM_1 = 16
-    TILE_DIM_2 = 16
-    griddim = (div(Nx+TILE_DIM_1-1,TILE_DIM_1), div(Ny+TILE_DIM_2-1,TILE_DIM_2))
-	blockdim = (TILE_DIM_1,TILE_DIM_2)
-    @cuda threads=blockdim blocks=griddim prolongation_2D_kernel(idata,odata,Nx,Ny,Val(TILE_DIM_1),Val(TILE_DIM_2))
-    nothing
-end
 
 function prolongation_2D_kernel(idata,odata,Nx,Ny,::Val{TILE_DIM_1},::Val{TILE_DIM_2}) where {TILE_DIM_1,TILE_DIM_2}
     tidx = threadIdx().x
@@ -67,6 +58,17 @@ function prolongation_2D_kernel(idata,odata,Nx,Ny,::Val{TILE_DIM_1},::Val{TILE_D
     return nothing
 end
 
+function matrix_free_prolongation_2d_GPU(idata,odata)
+    (Nx,Ny) = size(idata)
+    TILE_DIM_1 = 16
+    TILE_DIM_2 = 16
+    griddim = (div(Nx+TILE_DIM_1-1,TILE_DIM_1), div(Ny+TILE_DIM_2-1,TILE_DIM_2))
+	blockdim = (TILE_DIM_1,TILE_DIM_2)
+    @cuda threads=blockdim blocks=griddim prolongation_2D_kernel(idata,odata,Nx,Ny,Val(TILE_DIM_1),Val(TILE_DIM_2))
+    nothing
+end
+
+
 function matrix_free_restriction_2d(idata,odata)
     size_idata = size(idata)
     size_odata = div.(size_idata .+ 1,2)
@@ -83,18 +85,7 @@ function matrix_free_restriction_2d(idata,odata)
     return nothing
 end
 
-function matrix_free_restriction_2d_GPU(idata,odata)
-    (Nx,Ny) = size(idata)
-    idata_tmp = CuArray(zeros(Nx+2,Ny+2))
-    copyto!(view(idata_tmp,2:Nx+1,2:Ny+1),idata)
-    TILE_DIM_1 = 16
-    TILE_DIM_2 = 16
-    griddim = (div(Nx+TILE_DIM_1-1,TILE_DIM_1), div(Ny+TILE_DIM_2-1,TILE_DIM_2))
-	blockdim = (TILE_DIM_1,TILE_DIM_2)
-    @cuda threads=blockdim blocks=griddim restriction_2D_kernel(idata_tmp,odata,Nx,Ny,Val(TILE_DIM_1),Val(TILE_DIM_2))
-    nothing
 
-end
 
 function restriction_2D_kernel(idata_tmp,odata,Nx,Ny,::Val{TILE_DIM_1},::Val{TILE_DIM_2}) where {TILE_DIM_1,TILE_DIM_2}
     tidx = threadIdx().x
@@ -117,6 +108,20 @@ function restriction_2D_kernel(idata_tmp,odata,Nx,Ny,::Val{TILE_DIM_1},::Val{TIL
    
     return nothing
 end
+
+function matrix_free_restriction_2d_GPU(idata,odata)
+    (Nx,Ny) = size(idata)
+    idata_tmp = CuArray(zeros(Nx+2,Ny+2))
+    copyto!(view(idata_tmp,2:Nx+1,2:Ny+1),idata)
+    TILE_DIM_1 = 16
+    TILE_DIM_2 = 16
+    griddim = (div(Nx+TILE_DIM_1-1,TILE_DIM_1), div(Ny+TILE_DIM_2-1,TILE_DIM_2))
+	blockdim = (TILE_DIM_1,TILE_DIM_2)
+    @cuda threads=blockdim blocks=griddim restriction_2D_kernel(idata_tmp,odata,Nx,Ny,Val(TILE_DIM_1),Val(TILE_DIM_2))
+    nothing
+
+end
+
 
 function matrix_free_richardson(idata_GPU,odata_GPU,b_GPU;maxiter=3,ω=0.15)
     for _ in 1:maxiter
