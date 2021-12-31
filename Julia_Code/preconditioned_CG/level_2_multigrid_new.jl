@@ -451,8 +451,8 @@ end
 
 
 
-function test_preconditioned_CG(;level=6,nu=3,ω=2/3,p=2)
-    (A,b,H_tilde,Nx,Ny) = Assembling_matrix(level,p=p);
+function test_preconditioned_CG(;level=6,nu=3,ω=2/3,SBPp=2)
+    (A,b,H_tilde,Nx,Ny) = Assembling_matrix(level,p=SBPp);
     direct_sol = A\b
     reltol = sqrt(eps(real(eltype(b))))
     x = zeros(Nx*Ny);

@@ -87,17 +87,57 @@ function matrix_free_MGCG(b_GPU,x_GPU;maxiter=length(b),abstol=sqrt(eps(real(elt
     Ax_GPU = CuArray(zeros(size(x_GPU)))
     matrix_free_A_full_GPU(x_GPU,Ax_GPU)
     r_GPU = b_GPU + Ax_GPU
-    z_GPU = matrix_free_Two_level_multigrid(b_GPU)[1]
+    z_GPU = matrix_free_Two_level_multigrid(r_GPU)[1]
     p_GPU = copy(z_GPU)
+    Ap_GPU = copy(p_GPU)
     num_iter_steps_GPU = 0
     norms_GPU = [norm(r_GPU)]
     errors_GPU = []
     if direct_sol != 0 && H_tilde != 0
-        append!(errors,sqrt(direct_sol' * A * direct_sol))
+        append!(errors,sqrt(direct_sol' * A * direct_sol)) # need to rewrite
     end
-    
+
+    rzold_GPU = sum(r_GPU .* z_GPU)
+
+    for step = 1:maxiter
+        num_iter_steps_GPU += 1
+        matrix_free_A_full_GPU(p_GPU,Ap_GPU)
+        alpha_GPU = - rzold_GPU / sum(p_GPU .* Ap_GPU)
+        x_GPU .+= alpha_GPU .* p_GPU
+        r_GPU .+= alpha_GPU .* Ap_GPU
+        rs_GPU = sum(r_GPU .* r_GPU)
+        append!(norms_GPU,sqrt(rs_GPU))
+        if direct_sol != 0 && H_tilde != 0
+            error = sqrt((x - direct_sol)' * A * (x - direct_sol)) # need to rewrite
+            # @show error
+            append!(errors,error)
+        end
+        if sqrt(rs_GPU) < abstol
+            break
+        end
+        z_GPU .=  matrix_free_Two_level_multigrid(r_GPU)[1]
+        rznew_GPU = sum(r_GPU .* z_GPU)
+        beta_GPU = rznew_GPU / rzold_GPU
+        p_GPU .= z_GPU .+ beta_GPU .* p_GPU
+        rzold_GPU = rznew_GPU
+    end
+    return num_iter_steps_GPU, norms_GPU
 end
 
+
+function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
+    (A,b,H_tilde,Nx,Ny) = Assembling_matrix(level,p=SBPp);
+    direct_sol = A\b
+    reltol = sqrt(eps(real(eltype(b))))
+    x = zeros(Nx*Ny);
+    abstol = norm(A*x-b) * reltol
+
+    x_GPU = CuArray(zeros(Nx,Ny))
+    b_GPU = CuArray(reshape(b,Nx,Ny))
+
+    num_iter_steps_GPU, norms_GPU = matrix_free_MGCG(b_GPU,x_GPU;maxiter=length(b_GPU),abstol=abstol)
+    iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,p=SBPp)
+end
 
 let
     level = 2
