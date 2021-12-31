@@ -82,7 +82,8 @@ function matrix_free_Two_level_multigrid(b_GPU;nu=3,NUM_V_CYCLES=1,p=2)
         r_GPU = b_GPU + Av_values_out_GPU[1]
         matrix_free_restriction_2d(r_GPU,f_GPU[1])
         # v_values_GPU[2] = reshape(CuArray(A_2h) \ f_GPU[1][:],Nx_2h,Ny_2h)
-        v_values_GPU[2] = reshape(CUDA.CUSPARSE.CuSparseMatrixCSC(A_2h) \ f_GPU[1][:],Nx_2h,Ny_2h)
+        # v_values_GPU[2] = reshape(CUDA.CUSPARSE.CuSparseMatrixCSC(A_2h) \ f_GPU[1][:],Nx_2h,Ny_2h)
+        v_values_GPU[2] = reshape(CuArray(A_2h \ Array(f_GPU[1][:])),Nx_2h,Ny_2h)
         matrix_free_prolongation_2d(v_values_GPU[2],e_GPU[1])
         v_values_GPU[1] .+= e_GPU[1]
         matrix_free_richardson(v_values_GPU[1],v_values_out_GPU[1],rhs_values_GPU[1];maxiter=nu)
