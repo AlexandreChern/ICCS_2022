@@ -215,7 +215,7 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     b_GPU = CuArray(reshape(b,Nx,Ny))
 
     num_iter_steps_GPU, norms_GPU = matrix_free_MGCG(b_GPU,x_GPU;maxiter=length(b_GPU),abstol=abstol)
-    iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,p=SBPp)
+    iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,SBPp=SBPp)
     @show norms_GPU
     @show norm_mg_cg
 
@@ -229,7 +229,7 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
 
     t_CPU = @elapsed for _ in 1:REPEAT
         x = zeros(Nx*Ny)
-        mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,p=SBPp)
+        mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,SBPp=SBPp)
     end
 
     t_matrix_free_GPU ./ REPEAT
