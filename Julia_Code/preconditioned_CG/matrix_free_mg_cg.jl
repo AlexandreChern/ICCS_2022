@@ -83,8 +83,19 @@ function matrix_free_Two_level_multigrid(b_GPU;nu=3,NUM_V_CYCLES=1,p=2)
 end
 
 
-function matrix_free_MGCG(b_GPU)
-
+function matrix_free_MGCG(b_GPU,x_GPU;maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,p=2)
+    Ax_GPU = CuArray(zeros(size(x_GPU)))
+    matrix_free_A_full_GPU(x_GPU,Ax_GPU)
+    r_GPU = b_GPU + Ax_GPU
+    z_GPU = matrix_free_Two_level_multigrid(b_GPU)[1]
+    p_GPU = copy(z_GPU)
+    num_iter_steps_GPU = 0
+    norms_GPU = [norm(r_GPU)]
+    errors_GPU = []
+    if direct_sol != 0 && H_tilde != 0
+        append!(errors,sqrt(direct_sol' * A * direct_sol))
+    end
+    
 end
 
 
@@ -98,7 +109,7 @@ let
     odata_GPU = CuArray(zeros(N,N))
     
     x = zeros(length(idata_flat))
-    x_GPU = CuArray(x)
+    x_GPU_flat = CuArray(x)
     odata_reshaped = reshape(prolongation_2d(5)*idata_flat,9,9)
 
     size_idata = size(idata)
