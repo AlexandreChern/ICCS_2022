@@ -220,7 +220,7 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     @show norm_mg_cg
 
 
-    REPEAT = 5
+    REPEAT = 1
 
     t_matrix_free_GPU = @elapsed for _ in 1:REPEAT
         x_GPU = CuArray(zeros(Nx,Ny))

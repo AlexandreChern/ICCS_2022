@@ -330,11 +330,7 @@ function modified_richardson!(x,A,b;maxiter=3,ω=0.15)
     end
 end
 
-function Two_level_multigrid(A,b;nu=3,NUM_V_CYCLES=1,p=2)
-    Nx = Ny = Int(sqrt(length(b)))
-    level = Int(log(2,Nx-1))
-    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=p);
-
+function Two_level_multigrid(A,b,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,p=2)
     v_values = Dict(1=>zeros(Nx*Ny))
     rhs_values = Dict(1 => b)
     N_values = Dict(1 => Nx)
@@ -408,9 +404,13 @@ function precond_matrix(A, b; m=3, solver="jacobi",p=2)
 end
 
 function mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,p=2)
+    Nx = Ny = Int(sqrt(length(b)))
+    level = Int(log(2,Nx-1))
+    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=p);
+    A_2h = lu(A_2h)
     r = b - A * x;
     # (M, R, H, I_p, A_2h, I_r, IN) = precond_matrix(A,b;m=nu,solver="jacobi",p=p)
-    z = Two_level_multigrid(A,r;nu=nu,NUM_V_CYCLES=1)[1]
+    z = Two_level_multigrid(A,r,Nx,Ny,A_2h;nu=nu,NUM_V_CYCLES=1)[1]
     # z = M*r
     p = z;
     num_iter_steps = 0
@@ -438,7 +438,7 @@ function mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=sqrt(eps(real(eltyp
         if sqrt(rs) < abstol
             break
         end
-        z = Two_level_multigrid(A,r;nu=nu,NUM_V_CYCLES=1)[1]
+        z = Two_level_multigrid(A,r,Nx,Ny,A_2h;nu=nu,NUM_V_CYCLES=1)[1]
         # z = M*r
         rznew = r'*z
         beta = rznew/(rzold);
