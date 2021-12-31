@@ -158,7 +158,7 @@ function matrix_free_Two_level_multigrid(b_GPU,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
 end
 
 
-function matrix_free_MGCG(b_GPU,x_GPU;maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,p=2)
+function matrix_free_MGCG(b_GPU,x_GPU;maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,SBPp=2)
     (Nx,Ny) = size(b_GPU)
     level = Int(log(2,Nx-1))
     (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp)
