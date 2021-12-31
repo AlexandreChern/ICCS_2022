@@ -29,6 +29,10 @@ function matrix_free_prolongation_2d(idata,odata)
     return nothing
 end
 
+function matrix_free_prolongation_2d_GPU(idata,odata)
+
+end
+
 
 function matrix_free_restriction_2d(idata,odata)
     size_idata = size(idata)
@@ -44,6 +48,10 @@ function matrix_free_restriction_2d(idata,odata)
         end
     end
     return nothing
+end
+
+function matrix_free_restriction_2d_GPU(idata,odata)
+    
 end
 
 function matrix_free_richardson(idata_GPU,odata_GPU,b_GPU;maxiter=3,ω=0.15)
@@ -137,6 +145,29 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
 
     num_iter_steps_GPU, norms_GPU = matrix_free_MGCG(b_GPU,x_GPU;maxiter=length(b_GPU),abstol=abstol)
     iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,p=SBPp)
+    @show norms_GPU
+    @show norm_mg_cg
+
+
+    REPEAT = 5
+
+    t_matrix_free_GPU = @elapsed for _ in 1:REPEAT
+        x_GPU = CuArray(zeros(Nx,Ny))
+        matrix_free_MGCG(b_GPU,x_GPU;maxiter=length(b_GPU),abstol=abstol)
+    end
+
+    t_CPU = @elapsed for _ in 1:REPEAT
+        x = zeros(Nx*Ny)
+        mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,p=SBPp)
+    end
+
+    t_matrix_free_GPU ./ REPEAT
+    t_CPU ./ REPEAT
+
+    @show t_matrix_free_GPU
+    @show t_CPU
+
+    return nothing
 end
 
 let
