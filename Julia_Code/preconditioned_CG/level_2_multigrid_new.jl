@@ -393,7 +393,7 @@ function precond_matrix(A, b; m=3, solver="jacobi",SBPp=2)
     end
 
     # (A_2h, b_2h, x_2h, H1_2h) = get_operators(p, 2*h);
-    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=p)
+    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBP)
     I_r = restriction_2d(Nx)
     
     I_p = prolongation_2d(Nx_2h)
