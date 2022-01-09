@@ -282,6 +282,8 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     return nothing
 end
 
+
+test_matrix_free_MGCG(level=level)
 # let
 #     level = 6
 #     N = 2^level + 1
