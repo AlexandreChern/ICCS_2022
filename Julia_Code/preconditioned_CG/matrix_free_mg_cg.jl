@@ -290,6 +290,7 @@ test_matrix_free_MGCG(level=7)
 test_matrix_free_MGCG(level=8)
 test_matrix_free_MGCG(level=9)
 test_matrix_free_MGCG(level=10)
+test_matrix_free_MGCG(level=11)
 # test_matrix_free_MGCG(level=11)
 # test_matrix_free_MGCG(level=12)
 
