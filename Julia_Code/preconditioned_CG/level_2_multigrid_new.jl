@@ -244,6 +244,16 @@ function restriction_2d(N)
     return restriction_2d
 end
 
+
+function restriction_2d_GPU(N)
+    return CUDA.CUSPARSE.CuSparseMatrixCSC(restriction_2d(N))
+end
+
+
+function prolongation_2d_GPU(N)
+    return CUDA.CUSPARSE.CuSparseMatrixCSC(prolongation_2d(N))
+end
+
 function CG_CPU(A,b,x;maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),direct_sol=0,H_tilde=0)
     r = b - A * x;
     p = r;
@@ -338,6 +348,12 @@ function modified_richardson!(x,A,b;maxiter=3,ω=0.15)
     end
 end
 
+function modified_richardson_GPU!(x_GPU,A_GPU,b_GPU;maxiter=3,ω=0.15)
+    for _ in 1:maxiter
+        x_GPU[:] = x_GPU[:] + ω*(b_GPU .- A_GPU*x_GPU[:])
+    end
+end
+
 function Two_level_multigrid(A,b,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
     v_values = Dict(1=>zeros(Nx*Ny))
     rhs_values = Dict(1 => b)
@@ -362,6 +378,32 @@ function Two_level_multigrid(A,b,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
         modified_richardson!(v_values[1],A,b,maxiter=nu)
     end
     return (v_values[1],norm(A * v_values[1] - b))
+end
+
+function Two_level_multigrid_GPU(A_GPU,b_GPU,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
+    v_values = Dict(1=>CuArray(zeros(Nx*Ny)))
+    rhs_values = Dict(1 => b_GPU)
+    N_values = Dict(1 => Nx)
+    N_values[2] = div(Nx+1,2)
+
+    x = CuArray(zeros(length(b_GPU)));
+    v_values[1] = x
+    
+    for cycle_number in 1:NUM_V_CYCLES
+        # jacobi_brittany!(v_values[1],A,b;maxiter=nu);
+        modified_richardson_GPU!(v_values[1],A_GPU,b_GPU,maxiter=nu)
+        r = b_GPU - A_GPU*v_values[1];
+        f = Array(restriction_2d_GPU(Nx) * r);
+        v_values[2] = CuArray(A_2h \ f)
+
+        # println("Pass first part")
+        e_1 = prolongation_2d_GPU(N_values[2]) * v_values[2];
+        v_values[1] = v_values[1] + e_1;
+        # println("After coarse grid correction, norm(A*x-b): $(norm(A*v_values[1]-b))")
+        # jacobi_brittany!(v_values[1],A,b;maxiter=nu);
+        modified_richardson_GPU!(v_values[1],A_GPU,b_GPU,maxiter=nu)
+    end
+    return (v_values[1],norm(A_GPU * v_values[1] - b_GPU))
 end
 
 function precond_matrix(A, b; m=3, solver="jacobi",SBPp=2)
@@ -457,7 +499,51 @@ function mg_preconditioned_CG(A,b,x;A_2h = A_2h_lu,maxiter=length(b),abstol=sqrt
     return num_iter_steps, norms, errors
 end
 
+function mg_preconditioned_CG_GPU(A_GPU,b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,SBPp=2)
+    Nx = Ny = Int(sqrt(length(b_GPU)))
+    level = Int(log(2,Nx-1))
+    # (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp);
+    # A_2h = lu(A_2h)
+    r_GPU = b_GPU - A_GPU * x_GPU;
+    # (M, R, H, I_p, A_2h, I_r, IN) = precond_matrix(A,b;m=nu,solver="jacobi",p=p)
+    z_GPU = Two_level_multigrid_GPU(A_GPU,r_GPU,Nx,Ny,A_2h;nu=nu,NUM_V_CYCLES=1)[1]
+    # z = M*r
+    p_GPU = z_GPU;
+    num_iter_steps = 0
+    norms = [norm(r)]
+    errors = []
+    if direct_sol != 0 && H_tilde != 0
+        append!(errors,sqrt(direct_sol' * A * direct_sol))
+    end
 
+    rzold = r_GPU'*z_GPU
+
+    for step = 1:maxiter
+    # for step = 1:5
+        num_iter_steps += 1
+        alpha = rzold / (p_GPU'*A_GPU*p_GPU)
+        x_GPU .= x_GPU .+ alpha * p_GPU;
+        r_GPU .= r_GPU .- alpha * A_GPU*p_GPU
+        rs = r_GPU' * r_GPU
+        append!(norms,sqrt(rs))
+        # if direct_sol != 0 && H_tilde != 0
+        #     error = sqrt((x_GPU - direct_sol)' * A_GPU * (x_GPU - direct_sol))
+        #     # @show error
+        #     append!(errors,error)
+        # end
+        if sqrt(rs) < abstol
+            break
+        end
+        z_GPU = Two_level_multigrid_GPU(A_GPU,r_GPU,Nx,Ny,A_2h;nu=nu,NUM_V_CYCLES=1)[1]
+        # z = M*r
+        rznew = r_GPU'*z_GPU
+        beta = rznew/(rzold);
+        p_GPU .= z_GPU + beta * p_GPU;
+        rzold = rznew
+    end
+    # @show num_iter_steps
+    return num_iter_steps, norms, errors
+end
 
 function test_preconditioned_CG(;level=level,nu=3,ω=2/3,SBPp=2)
     (A,b,H_tilde,Nx,Ny) = Assembling_matrix(level,p=SBPp);

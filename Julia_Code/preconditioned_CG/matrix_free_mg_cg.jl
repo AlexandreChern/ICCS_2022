@@ -6,6 +6,14 @@ include("../split_matrix_free.jl")
 
 Random.seed!(123)
 
+if length(ARGS) != 0
+    level = parse(Int,ARGS[1])
+    Iterations = parse(Int,ARGS[2])
+else
+    level = 10
+    Iterations = 10000
+end
+
 function matrix_free_prolongation_2d(idata,odata)
     size_idata = size(idata)
     odata_tmp = zeros(size_idata .* 2)
@@ -211,7 +219,7 @@ end
 
 function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     (A,b,H_tilde,Nx,Ny) = Assembling_matrix(level,p=SBPp);
-    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level,p=SBPp);
+    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp);
     A_2h_lu = lu(A_2h)
     direct_sol = A\b
     reltol = sqrt(eps(real(eltype(b))))
@@ -221,29 +229,44 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     x_GPU = CuArray(zeros(Nx,Ny))
     b_GPU = CuArray(reshape(b,Nx,Ny))
 
+
+    A_GPU_sparse = CUDA.CUSPARSE.CuSparseMatrixCSC(A)
+    x_GPU_sparse = CuArray(zeros(Nx*Ny))
+    b_GPU_sparse = CuArray(b)
+
     num_iter_steps_GPU, norms_GPU = matrix_free_MGCG(b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=length(b_GPU),abstol=abstol)
     iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;maxiter=length(b),A_2h = A_2h_lu, abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,SBPp=SBPp)
+
+    iter_mg_cg_GPU, norm_mg_cg_GPU, error_mg_cg_GPU = mg_preconditioned_CG_GPU(A_GPU_sparse,b_GPU_sparse,x_GPU_sparse;maxiter=length(b_GPU_sparse),A_2h = A_2h_lu, abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,H_tilde=H_tilde,SBPp=SBPp)
     @show norms_GPU
     @show norm_mg_cg
+    @show norm_mg_cg_GPU
 
 
     REPEAT = 1
 
     t_matrix_free_GPU = @elapsed for _ in 1:REPEAT
         x_GPU = CuArray(zeros(Nx,Ny))
-        matrix_free_MGCG(b_GPU,x_GPU;maxiter=length(b_GPU),abstol=abstol)
+        matrix_free_MGCG(b_GPU,x_GPU;A_2h=A_2h_lu,maxiter=length(b_GPU),abstol=abstol)
     end
 
     t_CPU = @elapsed for _ in 1:REPEAT
         x = zeros(Nx*Ny)
-        mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,SBPp=SBPp)
+        mg_preconditioned_CG(A,b,x;A_2h=A_2h_lu,maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,SBPp=SBPp)
     end
 
-    t_matrix_free_GPU ./ REPEAT
-    t_CPU ./ REPEAT
+    t_GPU_sparse = @elapsed for _ in 1:REPEAT
+        x_GPU_sparse = CuArray(zeros(Nx*Ny))
+        mg_preconditioned_CG_GPU(A_GPU_sparse,b_GPU_sparse,x_GPU_sparse;maxiter=length(b_GPU),A_2h = A_2h_lu, abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,H_tilde=H_tilde,SBPp=SBPp)
+    end
+
+    t_matrix_free_GPU = t_matrix_free_GPU / REPEAT
+    t_CPU /= REPEAT
+    t_GPU_sparse /= REPEAT
 
     @show t_matrix_free_GPU
     @show t_CPU
+    @show t_GPU_sparse
 
     return nothing
 end
