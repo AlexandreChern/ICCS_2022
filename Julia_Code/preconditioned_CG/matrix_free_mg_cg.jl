@@ -383,14 +383,14 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     x_GPU = CuArray(zeros(Nx,Ny))
     b_GPU = CuArray(reshape(b,Nx,Ny))
 
-    b_2h_GPU = CuArray(reshape(b_2h,Nx_2h,Ny_2h))
+    num_iter_steps_matrix_free_GPU, norms_matrix_free_GPU = matrix_free_MGCG(b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=length(b_GPU),abstol=abstol,nu=nu)
 
 
     A_GPU_sparse = CUDA.CUSPARSE.CuSparseMatrixCSC(A)
     x_GPU_sparse = CuArray(zeros(Nx*Ny))
     b_GPU_sparse = CuArray(b)
 
-    num_iter_steps_matrix_free_GPU, norms_matrix_free_GPU = matrix_free_MGCG(b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=length(b_GPU),abstol=abstol,nu=nu)
+  
 
     x_GPU = CuArray(zeros(Nx,Ny))
     num_iter_steps_matrix_free_GPU_Three_level, norms_matrix_free_GPU_Three_level = matrix_free_MGCG_Three_level(b_GPU,x_GPU;A_4h = A_4h_lu,maxiter=length(b_GPU),abstol=abstol,nu=nu)
