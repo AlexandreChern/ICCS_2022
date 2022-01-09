@@ -176,11 +176,54 @@ function matrix_free_Two_level_multigrid(b_GPU,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
 end
 
 
-function matrix_free_Three_level_multigrid(b_GPU,b_2h_GPU,A_4h;nu=3,NUM_V_CYCLES=1,SBPp=2)
+
+function Three_level_multigrid(A,b,A_2h,b_2h,A_4h,b_4h,Nx,Ny;nu=3,NUM_V_CYCLES=1,SBPp=2)
+    v_values = Dict(1=>zeros(Nx*Ny))
+    Nx_2h = Ny_2h = div(Nx+1,2)
+    Nx_4h = N4_3h = div(Nx_2h+1,2)
+
+    rhs_values = Dict(1 => b)
+    N_values = Dict(1 => Nx)
+    N_values[2] = Nx_2h
+    N_values[3] = Nx_4h
+
+    x = zeros(length(b));
+    v_values[1] = x
+    v_values[2] = zeros(Nx_2h*Ny_2h)
+    
+    for cycle_number in 1:NUM_V_CYCLES
+        # jacobi_brittany!(v_values[1],A,b;maxiter=nu);
+        modified_richardson!(v_values[1],A,b,maxiter=nu)
+        r_h = b - A*v_values[1];
+
+        rhs_values[2] = restriction_2d(Nx) * r_h;
+
+        modified_richardson!(v_values[2],A_2h,rhs_values[2],maxiter=nu)
+        # r_2h = b_2h - A_2h * v_values[2]
+        r_2h = - A_2h * v_values[2]
+        rhs_values[3] = restriction_2d(Nx_2h) * r_2h
+
+        v_values[3] = A_4h \ rhs_values[3]
+
+        # println("Pass first part")
+
+        e_2 = prolongation_2d(N_values[3]) * v_values[3];
+        v_values[2] = v_values[2] + e_2;
+        # println("After coarse grid correction, norm(A*x-b): $(norm(A*v_values[1]-b))")
+        # jacobi_brittany!(v_values[1],A,b;maxiter=nu);
+        modified_richardson!(v_values[2],A_2h,rhs_values[2],maxiter=nu)
+        e_1 = prolongation_2d(N_values[2]) * v_values[2]
+        v_values[1] = v_values[1] + e_1
+        modified_richardson!(v_values[1],A,b,maxiter=nu)
+    end
+    return (v_values[1],norm(A * v_values[1] - b))
+end
+
+function matrix_free_Three_level_multigrid(b_GPU,A_4h;nu=3,NUM_V_CYCLES=1,SBPp=2)
     (Nx,Ny) = size(b_GPU)
     level = Int(log(2,Nx-1))
     (Nx_2h,Ny_2h) = div.((Nx,Ny) .+ 1,2)
-    (Nx_3h,Ny_3h) = div.((Nx_2h,Ny_2h) .+ 1,2)
+    (Nx_4h,Ny_4h) = div.((Nx_2h,Ny_2h) .+ 1,2)
     # (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp)
     v_values_GPU = Dict(1=>CuArray(zeros(Nx,Ny)))
     v_values_GPU[2] = CuArray(zeros(Nx_2h,Ny_2h))
@@ -195,12 +238,13 @@ function matrix_free_Three_level_multigrid(b_GPU,b_2h_GPU,A_4h;nu=3,NUM_V_CYCLES
     rhs_values_GPU[3] = CuArray(zeros(Nx_4h,Ny_4h))
 
     N_values = Dict(1=>Nx)
-    N_values[2] = div(Nx+1,2)
+    N_values[2] = Nx_2h
+    N_values[3] = Nx_4h
     f_GPU = Dict(1=>CuArray(zeros(Nx_2h,Ny_2h)))
     f_GPU[2] = CuArray(zeros(Nx_3h,Ny_3h))
 
-    e_GPU = Dict(1=>CuArray(zeros(Nx,Ny)))
-    e_GPU[2] = CuArray(zeros(Nx_2h,Ny_2h))
+    e_GPU = Dict(1=>CuArray(zeros(Nx,Ny)));
+    e_GPU[2] = CuArray(zeros(Nx_2h,Ny_2h));
     
     for cycle_number in 1:NUM_V_CYCLES
         matrix_free_richardson(v_values_GPU[1],v_values_out_GPU[1],rhs_values_GPU[1];maxiter=nu)
@@ -212,7 +256,8 @@ function matrix_free_Three_level_multigrid(b_GPU,b_2h_GPU,A_4h;nu=3,NUM_V_CYCLES
         matrix_free_richardson(v_values_GPU[2],v_values_out_GPU[2],rhs_values_GPU[2];maxiter=nu)
         matrix_free_A_full_GPU(v_values_out_GPU[2],Av_values_out_GPU[2])
 
-        r_2h_GPU = b_2h_GPU + Av_values_out_GPU[2]
+        # r_2h_GPU = b_2h_GPU + Av_values_out_GPU[2]
+        r_2h_GPU = Av_values_out_GPU[2]
         matrix_free_restriction_2d_GPU(r_2h_GPU,rhs_values_GPU[3])
 
         v_values_GPU[3] = reshape(CuArray(A_4h \ Array(rhs_values_GPU[3][:])),Nx_4h,Ny_4h)
@@ -221,9 +266,12 @@ function matrix_free_Three_level_multigrid(b_GPU,b_2h_GPU,A_4h;nu=3,NUM_V_CYCLES
 
         matrix_free_prolongation_2d_GPU(v_values_GPU[3],e_GPU[2])
         v_values_out_GPU[2] += e_GPU[2]
+        v_values_GPU[2] .= v_values_out_GPU[2]
         matrix_free_richardson(v_values_GPU[2],v_values_out_GPU[2],rhs_values_GPU[2];maxiter=nu)
-        matrix_free_prolongation_2d_GPU(v_values_GPU[2],e_GPU[1])
+        matrix_free_prolongation_2d_GPU(v_values_out_GPU[2],e_GPU[1])
         v_values_out_GPU[1] += e_GPU[1]
+        v_values_GPU[1] .= v_values_out_GPU[1]
+        matrix_free_richardson(v_values_out_GPU[1],v_values_out_GPU[1],rhs_values_GPU[1];maxiter=nu)
         matrix_free_richardson(v_values_GPU[1],v_values_out_GPU[1],rhs_values_GPU[1];maxiter=nu)
     end
     matrix_free_A_full_GPU(v_values_out_GPU[1],Av_values_out_GPU[1])
@@ -275,6 +323,51 @@ function matrix_free_MGCG(b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=length(b),abstol=sq
     return num_iter_steps_GPU, norms_GPU
 end
 
+function matrix_free_MGCG_Three_level(b_GPU,x_GPU;A_4h = A_4h_lu,maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,SBPp=2)
+    (Nx,Ny) = size(b_GPU)
+    level = Int(log(2,Nx-1))
+    # (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp)
+    # A_2h = lu(A_2h)
+    Ax_GPU = CuArray(zeros(size(x_GPU)))
+    matrix_free_A_full_GPU(x_GPU,Ax_GPU)
+    r_GPU = b_GPU + Ax_GPU
+    z_GPU = matrix_free_Three_level_multigrid(r_GPU,A_4h;nu=nu)[1]
+    p_GPU = copy(z_GPU)
+    Ap_GPU = copy(p_GPU)
+    num_iter_steps_GPU = 0
+    norms_GPU = [norm(r_GPU)]
+    errors_GPU = []
+    if direct_sol != 0 && H_tilde != 0
+        append!(errors,sqrt(direct_sol' * A * direct_sol)) # need to rewrite
+    end
+
+    rzold_GPU = sum(r_GPU .* z_GPU)
+
+    for step = 1:maxiter
+        num_iter_steps_GPU += 1
+        matrix_free_A_full_GPU(p_GPU,Ap_GPU)
+        alpha_GPU = - rzold_GPU / sum(p_GPU .* Ap_GPU)
+        x_GPU .+= alpha_GPU .* p_GPU
+        r_GPU .+= alpha_GPU .* Ap_GPU
+        rs_GPU = sum(r_GPU .* r_GPU)
+        append!(norms_GPU,sqrt(rs_GPU))
+        if direct_sol != 0 && H_tilde != 0
+            error = sqrt((x - direct_sol)' * A * (x - direct_sol)) # need to rewrite
+            # @show error
+            append!(errors,error)
+        end
+        if sqrt(rs_GPU) < abstol
+            break
+        end
+        z_GPU .=  matrix_free_Three_level_multigrid(r_GPU,A_4h;nu=nu)[1]
+        rznew_GPU = sum(r_GPU .* z_GPU)
+        beta_GPU = rznew_GPU / rzold_GPU
+        p_GPU .= z_GPU .+ beta_GPU .* p_GPU
+        rzold_GPU = rznew_GPU
+    end
+    return num_iter_steps_GPU, norms_GPU
+end
+
 
 function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     (A,b,H_tilde,Nx,Ny) = Assembling_matrix(level,p=SBPp);
@@ -298,6 +391,10 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     b_GPU_sparse = CuArray(b)
 
     num_iter_steps_matrix_free_GPU, norms_matrix_free_GPU = matrix_free_MGCG(b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=length(b_GPU),abstol=abstol,nu=nu)
+
+    x_GPU = CuArray(zeros(Nx,Ny))
+    num_iter_steps_matrix_free_GPU_Three_level, norms_matrix_free_GPU_Three_level = matrix_free_MGCG_Three_level(b_GPU,x_GPU;A_4h = A_4h_lu,maxiter=length(b_GPU),abstol=abstol,nu=nu)
+    
     iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;maxiter=length(b),A_2h = A_2h_lu, abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,SBPp=SBPp)
 
     iter_mg_cg_GPU, norm_mg_cg_GPU, error_mg_cg_GPU = mg_preconditioned_CG_GPU(A_GPU_sparse,b_GPU_sparse,x_GPU_sparse;maxiter=length(b_GPU_sparse),A_2h = A_2h_lu, abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,H_tilde=H_tilde,SBPp=SBPp)
@@ -307,21 +404,27 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
 
     norms_CG_GPU, history = cg(A_GPU_sparse,b_GPU_sparse,abstol=abstol,log=true)
 
-    # 3-level multigrid
-    x_3mg, norm_3mg = Three_level_multigrid(A,b,A_2h,b_2h,A_4h,b_4h,Nx,Ny;nu=3,NUM_V_CYCLES=1,SBPp=2)
+    # # 3-level multigrid
+    # x_3mg, norm_3mg = Three_level_multigrid(A,b,A_2h,b_2h,A_4h,b_4h,Nx,Ny;nu=3,NUM_V_CYCLES=1,SBPp=2)
 
-    # 2-level multigrid
-    x_2mg, norm_2mg = Two_level_multigrid(A,b,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
+    # # 2-level multigrid
+    # x_2mg, norm_2mg = Two_level_multigrid(A,b,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
+
+
+
+    # # 3-level multigrid GPU 
+    # matrix_free_Three_level_multigrid(b_GPU,A_4h;nu=3,NUM_V_CYCLES=1,SBPp=2)
 
     REPEAT = 1
-
-
-    # 3-level multigrid GPU 
-    matrix_free_Three_level_multigrid(b_GPU,b_2h_GPU,A_4h;nu=3,NUM_V_CYCLES=1,SBPp=2)
 
     t_matrix_free_MGCG_GPU = @elapsed for _ in 1:REPEAT
         x_GPU = CuArray(zeros(Nx,Ny))
         matrix_free_MGCG(b_GPU,x_GPU;A_2h=A_2h_lu,maxiter=length(b_GPU),abstol=abstol,nu=nu)
+    end
+
+    t_matrix_free_MGCG_Three_level_GPU = @elapsed for _ in 1:REPEAT
+        x_GPU = CuArray(zeros(Nx,Ny))
+        matrix_free_MGCG_Three_level(b_GPU,x_GPU;A_4h=A_4h_lu,maxiter=length(b_GPU),abstol=abstol,nu=nu)
     end
 
     t_MGCG_CPU = @elapsed for _ in 1:REPEAT
@@ -342,6 +445,7 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
 
 
     t_matrix_free_MGCG_GPU = t_matrix_free_MGCG_GPU / REPEAT
+    t_matrix_free_MGCG_Three_level_GPU = t_matrix_free_MGCG_Three_level_GPU / REPEAT
     t_MGCG_CPU /= REPEAT
     t_MGCG_GPU_sparse /= REPEAT
     t_CG_GPU_sparse /= REPEAT
@@ -349,6 +453,7 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     @show Nx, Ny
 
     @show t_matrix_free_MGCG_GPU, num_iter_steps_matrix_free_GPU
+    @show  t_matrix_free_MGCG_Three_level_GPU, num_iter_steps_matrix_free_GPU_Three_level
     @show t_MGCG_CPU, iter_mg_cg
     @show t_MGCG_GPU_sparse, iter_mg_cg_GPU
     @show t_CG_GPU_sparse, length(history.data[:resnorm])
