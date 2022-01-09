@@ -285,7 +285,14 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
 end
 
 
-test_matrix_free_MGCG(level=level)
+test_matrix_free_MGCG(level=6)
+test_matrix_free_MGCG(level=7)
+test_matrix_free_MGCG(level=8)
+test_matrix_free_MGCG(level=9)
+test_matrix_free_MGCG(level=10)
+# test_matrix_free_MGCG(level=11)
+# test_matrix_free_MGCG(level=12)
+
 # let
 #     level = 6
 #     N = 2^level + 1
