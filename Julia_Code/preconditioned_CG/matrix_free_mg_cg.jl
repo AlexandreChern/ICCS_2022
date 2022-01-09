@@ -274,6 +274,8 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     t_MGCG_GPU_sparse /= REPEAT
     t_CG_GPU_sparse /= REPEAT
 
+    @show Nx, Ny
+
     @show t_matrix_free_MGCG_GPU
     @show t_MGCG_CPU
     @show t_MGCG_GPU_sparse
