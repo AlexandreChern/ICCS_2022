@@ -245,7 +245,7 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     norms_CG_GPU, history = cg(A_GPU_sparse,b_GPU_sparse,abstol=abstol,log=true)
 
 
-    REPEAT = 3
+    REPEAT = 5
 
     t_matrix_free_MGCG_GPU = @elapsed for _ in 1:REPEAT
         x_GPU = CuArray(zeros(Nx,Ny))
