@@ -350,7 +350,7 @@ end
 
 function modified_richardson_GPU!(x_GPU,A_GPU,b_GPU;maxiter=3,ω=0.15)
     for _ in 1:maxiter
-        x_GPU[:] = x_GPU[:] + ω*(b_GPU .- A_GPU*x_GPU[:])
+        x_GPU[:] = x_GPU[:] + ω*(b_GPU - A_GPU*x_GPU[:])
     end
 end
 
@@ -522,8 +522,8 @@ function mg_preconditioned_CG_GPU(A_GPU,b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=lengt
     # for step = 1:5
         num_iter_steps += 1
         alpha = rzold / (p_GPU'*A_GPU*p_GPU)
-        x_GPU .= x_GPU .+ alpha * p_GPU;
-        r_GPU .= r_GPU .- alpha * A_GPU*p_GPU
+        x_GPU = x_GPU + alpha * p_GPU;
+        r_GPU = r_GPU - alpha * A_GPU*p_GPU
         rs = r_GPU' * r_GPU
         append!(norms,sqrt(rs))
         # if direct_sol != 0 && H_tilde != 0
@@ -538,7 +538,7 @@ function mg_preconditioned_CG_GPU(A_GPU,b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=lengt
         # z = M*r
         rznew = r_GPU'*z_GPU
         beta = rznew/(rzold);
-        p_GPU .= z_GPU + beta * p_GPU;
+        p_GPU = z_GPU + beta * p_GPU;
         rzold = rznew
     end
     # @show num_iter_steps
