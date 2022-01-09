@@ -523,7 +523,7 @@ function mg_preconditioned_CG_GPU(A_GPU,b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=lengt
         num_iter_steps += 1
         alpha = rzold / (p_GPU'*A_GPU*p_GPU)
         x_GPU .= x_GPU .+ alpha * p_GPU;
-        r_GPU .= r_GPU .- alpha * A_GPU*p_GPU
+        r_GPU .= r_GPU .- alpha * (A_GPU*p_GPU)
         rs = r_GPU' * r_GPU
         append!(norms,sqrt(rs))
         # if direct_sol != 0 && H_tilde != 0
