@@ -276,10 +276,10 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
 
     @show Nx, Ny
 
-    @show t_matrix_free_MGCG_GPU
-    @show t_MGCG_CPU
-    @show t_MGCG_GPU_sparse
-    @show t_CG_GPU_sparse
+    @show t_matrix_free_MGCG_GPU, num_iter_steps_matrix_free_GPU
+    @show t_MGCG_CPU, iter_mg_cg
+    @show t_MGCG_GPU_sparse, iter_mg_cg_GPU
+    @show t_CG_GPU_sparse, length(history.data[:resnorm])
 
     return nothing
 end
