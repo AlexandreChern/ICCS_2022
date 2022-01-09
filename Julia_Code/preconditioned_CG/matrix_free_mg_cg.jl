@@ -163,11 +163,11 @@ function matrix_free_Two_level_multigrid(b_GPU,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
 end
 
 
-function matrix_free_MGCG(b_GPU,x_GPU;maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,SBPp=2)
+function matrix_free_MGCG(b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,SBPp=2)
     (Nx,Ny) = size(b_GPU)
     level = Int(log(2,Nx-1))
-    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp)
-    A_2h = lu(A_2h)
+    # (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp)
+    # A_2h = lu(A_2h)
     Ax_GPU = CuArray(zeros(size(x_GPU)))
     matrix_free_A_full_GPU(x_GPU,Ax_GPU)
     r_GPU = b_GPU + Ax_GPU
@@ -211,6 +211,8 @@ end
 
 function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     (A,b,H_tilde,Nx,Ny) = Assembling_matrix(level,p=SBPp);
+    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level,p=SBPp);
+    A_2h_lu = lu(A_2h)
     direct_sol = A\b
     reltol = sqrt(eps(real(eltype(b))))
     x = zeros(Nx*Ny);
@@ -219,8 +221,8 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     x_GPU = CuArray(zeros(Nx,Ny))
     b_GPU = CuArray(reshape(b,Nx,Ny))
 
-    num_iter_steps_GPU, norms_GPU = matrix_free_MGCG(b_GPU,x_GPU;maxiter=length(b_GPU),abstol=abstol)
-    iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,SBPp=SBPp)
+    num_iter_steps_GPU, norms_GPU = matrix_free_MGCG(b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=length(b_GPU),abstol=abstol)
+    iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;maxiter=length(b),A_2h = A_2h_lu, abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,SBPp=SBPp)
     @show norms_GPU
     @show norm_mg_cg
 
@@ -246,51 +248,51 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     return nothing
 end
 
-let
-    level = 6
-    N = 2^level + 1
-    Random.seed!(0)
-    idata = randn(N,N)
-    idata_flat = idata[:]
-    idata_GPU = CuArray(idata)
-    odata_GPU = CuArray(zeros(N,N))
+# let
+#     level = 6
+#     N = 2^level + 1
+#     Random.seed!(0)
+#     idata = randn(N,N)
+#     idata_flat = idata[:]
+#     idata_GPU = CuArray(idata)
+#     odata_GPU = CuArray(zeros(N,N))
     
-    x = zeros(length(idata_flat))
-    x_GPU_flat = CuArray(x)
-    odata_reshaped = reshape(prolongation_2d(N)*idata_flat,2*N-1,2*N-1)
+#     x = zeros(length(idata_flat))
+#     x_GPU_flat = CuArray(x)
+#     odata_reshaped = reshape(prolongation_2d(N)*idata_flat,2*N-1,2*N-1)
 
-    size_idata = size(idata)
-    odata_prolongation = zeros(2*size_idata[1]-1,2*size_idata[2]-1)
-    odata_restriction = zeros(div.(size_idata .+ 1,2))
+#     size_idata = size(idata)
+#     odata_prolongation = zeros(2*size_idata[1]-1,2*size_idata[2]-1)
+#     odata_restriction = zeros(div.(size_idata .+ 1,2))
 
-    odata_prolongation_GPU = CuArray(odata_prolongation)
-    odata_restriction_GPU = CuArray(odata_restriction)
+#     odata_prolongation_GPU = CuArray(odata_prolongation)
+#     odata_restriction_GPU = CuArray(odata_restriction)
 
-    matrix_free_restriction_2d(idata,odata_restriction)
-    matrix_free_prolongation_2d(idata,odata_prolongation)
+#     matrix_free_restriction_2d(idata,odata_restriction)
+#     matrix_free_prolongation_2d(idata,odata_prolongation)
 
-    @assert odata_restriction[:] ≈ restriction_2d(N) * idata_flat
-    @assert odata_prolongation[:] ≈ prolongation_2d(N) * idata_flat
+#     @assert odata_restriction[:] ≈ restriction_2d(N) * idata_flat
+#     @assert odata_prolongation[:] ≈ prolongation_2d(N) * idata_flat
 
-    matrix_free_prolongation_2d(idata_GPU,odata_prolongation_GPU)
-    matrix_free_prolongation_2d_GPU(idata_GPU,odata_prolongation_GPU)
+#     matrix_free_prolongation_2d(idata_GPU,odata_prolongation_GPU)
+#     matrix_free_prolongation_2d_GPU(idata_GPU,odata_prolongation_GPU)
 
-    matrix_free_restriction_2d(idata_GPU,odata_restriction_GPU)
-    matrix_free_restriction_2d_GPU(idata_GPU,odata_restriction_GPU)
+#     matrix_free_restriction_2d(idata_GPU,odata_restriction_GPU)
+#     matrix_free_restriction_2d_GPU(idata_GPU,odata_restriction_GPU)
 
-    @assert odata_restriction ≈ Array(odata_restriction_GPU)
-    @assert odata_prolongation ≈ Array(odata_prolongation_GPU)
+#     @assert odata_restriction ≈ Array(odata_restriction_GPU)
+#     @assert odata_prolongation ≈ Array(odata_prolongation_GPU)
 
     
 
-    (A,b,H,Nx,Ny) = Assembling_matrix(level,p=2)
+#     (A,b,H,Nx,Ny) = Assembling_matrix(level,p=2)
 
-    maxiter=2
-    modified_richardson!(idata_flat,A,b;maxiter=maxiter)
-    b_GPU = CuArray(reshape(b,N,N))
-    matrix_free_richardson(idata_GPU,odata_GPU,b_GPU;maxiter=maxiter)
+#     maxiter=2
+#     modified_richardson!(idata_flat,A,b;maxiter=maxiter)
+#     b_GPU = CuArray(reshape(b,N,N))
+#     matrix_free_richardson(idata_GPU,odata_GPU,b_GPU;maxiter=maxiter)
 
-    richardson_out_CPU = idata_flat + 0.15 * (b - A*idata_flat)
-    matrix_free_A_full_GPU(idata_GPU,odata_GPU) # Be careful, matrix_free_A_GPU is -A here, with minus sign
-    richardson_out_GPU = idata_GPU + 0.15 * (b_GPU + odata_GPU) #
-end
+#     richardson_out_CPU = idata_flat + 0.15 * (b - A*idata_flat)
+#     matrix_free_A_full_GPU(idata_GPU,odata_GPU) # Be careful, matrix_free_A_GPU is -A here, with minus sign
+#     richardson_out_GPU = idata_GPU + 0.15 * (b_GPU + odata_GPU) #
+# end

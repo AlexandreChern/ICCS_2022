@@ -1,5 +1,13 @@
 include("../diagonal_sbp.jl")
 
+if length(ARGS) != 0
+    level = parse(Int,ARGS[1])
+    Iterations = parse(Int,ARGS[2])
+else
+    level = 10
+    Iterations = 10000
+end
+
 using LinearAlgebra
 using SparseArrays
 using Plots
@@ -393,7 +401,7 @@ function precond_matrix(A, b; m=3, solver="jacobi",SBPp=2)
     end
 
     # (A_2h, b_2h, x_2h, H1_2h) = get_operators(p, 2*h);
-    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBP)
+    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp)
     I_r = restriction_2d(Nx)
     
     I_p = prolongation_2d(Nx_2h)
@@ -403,11 +411,11 @@ function precond_matrix(A, b; m=3, solver="jacobi",SBPp=2)
     return (M, R, H, I_p, A_2h, I_r, IN)
 end
 
-function mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,SBPp=2)
+function mg_preconditioned_CG(A,b,x;A_2h = A_2h_lu,maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,SBPp=2)
     Nx = Ny = Int(sqrt(length(b)))
     level = Int(log(2,Nx-1))
-    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp);
-    A_2h = lu(A_2h)
+    # (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp);
+    # A_2h = lu(A_2h)
     r = b - A * x;
     # (M, R, H, I_p, A_2h, I_r, IN) = precond_matrix(A,b;m=nu,solver="jacobi",p=p)
     z = Two_level_multigrid(A,r,Nx,Ny,A_2h;nu=nu,NUM_V_CYCLES=1)[1]
@@ -451,8 +459,10 @@ end
 
 
 
-function test_preconditioned_CG(;level=6,nu=3,ω=2/3,SBPp=2)
+function test_preconditioned_CG(;level=level,nu=3,ω=2/3,SBPp=2)
     (A,b,H_tilde,Nx,Ny) = Assembling_matrix(level,p=SBPp);
+    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp);
+    A_2h_lu = lu(A_2h)
     direct_sol = A\b
     reltol = sqrt(eps(real(eltype(b))))
     x = zeros(Nx*Ny);
@@ -461,7 +471,7 @@ function test_preconditioned_CG(;level=6,nu=3,ω=2/3,SBPp=2)
     (M, R, H, I_p, A_2h, I_r, IN) = precond_matrix(A,b;m=nu,solver="jacobi")
     cond_A_M = cond(M*A)
     x = zeros(Nx*Ny);
-    iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,p=SBPp)
+    iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;A_2h = A_2h_lu, maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,SBPp=SBPp)
     error_mg_cg_bound_coef = (sqrt(cond_A_M) - 1) / (sqrt(cond_A_M) + 1)
     error_mg_cg_bound = error_mg_cg[1] .* 2 .* error_mg_cg_bound_coef .^ (0:1:length(error_mg_cg)-1)
     plot(log.(10,error_mg_cg),label="error_mg_cg")
