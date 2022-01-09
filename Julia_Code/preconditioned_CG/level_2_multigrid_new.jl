@@ -350,7 +350,7 @@ end
 
 function modified_richardson_GPU!(x_GPU,A_GPU,b_GPU;maxiter=3,ω=0.15)
     for _ in 1:maxiter
-        x_GPU[:] = x_GPU[:] + ω*(b_GPU - A_GPU*x_GPU[:])
+        x_GPU .= x_GPU .+ ω*(b_GPU .- A_GPU*x_GPU)
     end
 end
 

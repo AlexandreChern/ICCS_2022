@@ -8,10 +8,10 @@ Random.seed!(123)
 
 if length(ARGS) != 0
     level = parse(Int,ARGS[1])
-    Iterations = parse(Int,ARGS[2])
+    # Iterations = parse(Int,ARGS[2])
 else
     level = 10
-    Iterations = 10000
+    # Iterations = 10000
 end
 
 function matrix_free_prolongation_2d(idata,odata)
