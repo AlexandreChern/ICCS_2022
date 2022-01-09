@@ -510,7 +510,7 @@ function mg_preconditioned_CG_GPU(A_GPU,b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=lengt
     # z = M*r
     p_GPU = z_GPU;
     num_iter_steps = 0
-    norms = [norm(r)]
+    norms = [norm(r_GPU)]
     errors = []
     if direct_sol != 0 && H_tilde != 0
         append!(errors,sqrt(direct_sol' * A * direct_sol))
