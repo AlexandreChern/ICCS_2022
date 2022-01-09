@@ -234,7 +234,7 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     x_GPU_sparse = CuArray(zeros(Nx*Ny))
     b_GPU_sparse = CuArray(b)
 
-    num_iter_steps_GPU, norms_GPU = matrix_free_MGCG(b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=length(b_GPU),abstol=abstol)
+    num_iter_steps_matrix_free_GPU, norms_matrix_free_GPU = matrix_free_MGCG(b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=length(b_GPU),abstol=abstol)
     iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;maxiter=length(b),A_2h = A_2h_lu, abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,SBPp=SBPp)
 
     iter_mg_cg_GPU, norm_mg_cg_GPU, error_mg_cg_GPU = mg_preconditioned_CG_GPU(A_GPU_sparse,b_GPU_sparse,x_GPU_sparse;maxiter=length(b_GPU_sparse),A_2h = A_2h_lu, abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,H_tilde=H_tilde,SBPp=SBPp)
@@ -242,31 +242,42 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     @show norm_mg_cg
     @show norm_mg_cg_GPU
 
+    norms_CG_GPU, history = cg(A_GPU_sparse,b_GPU_sparse,abstol=abstol,log=true)
 
-    REPEAT = 1
 
-    t_matrix_free_GPU = @elapsed for _ in 1:REPEAT
+    REPEAT = 3
+
+    t_matrix_free_MGCG_GPU = @elapsed for _ in 1:REPEAT
         x_GPU = CuArray(zeros(Nx,Ny))
         matrix_free_MGCG(b_GPU,x_GPU;A_2h=A_2h_lu,maxiter=length(b_GPU),abstol=abstol)
     end
 
-    t_CPU = @elapsed for _ in 1:REPEAT
+    t_MGCG_CPU = @elapsed for _ in 1:REPEAT
         x = zeros(Nx*Ny)
         mg_preconditioned_CG(A,b,x;A_2h=A_2h_lu,maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,SBPp=SBPp)
     end
 
-    t_GPU_sparse = @elapsed for _ in 1:REPEAT
+    t_MGCG_GPU_sparse = @elapsed for _ in 1:REPEAT
         x_GPU_sparse = CuArray(zeros(Nx*Ny))
         mg_preconditioned_CG_GPU(A_GPU_sparse,b_GPU_sparse,x_GPU_sparse;maxiter=length(b_GPU),A_2h = A_2h_lu, abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,H_tilde=H_tilde,SBPp=SBPp)
     end
 
-    t_matrix_free_GPU = t_matrix_free_GPU / REPEAT
-    t_CPU /= REPEAT
-    t_GPU_sparse /= REPEAT
+    t_CG_GPU_sparse = @elapsed for _ in 1:REPEAT
+        cg(A_GPU_sparse,b_GPU_sparse,abstol=abstol,log=true)
+    end
 
-    @show t_matrix_free_GPU
-    @show t_CPU
-    @show t_GPU_sparse
+    println()
+
+
+    t_matrix_free_MGCG_GPU = t_matrix_free_MGCG_GPU / REPEAT
+    t_MGCG_CPU /= REPEAT
+    t_MGCG_GPU_sparse /= REPEAT
+    t_CG_GPU_sparse /= REPEAT
+
+    @show t_matrix_free_MGCG_GPU
+    @show t_MGCG_CPU
+    @show t_MGCG_GPU_sparse
+    @show t_CG_GPU_sparse
 
     return nothing
 end
