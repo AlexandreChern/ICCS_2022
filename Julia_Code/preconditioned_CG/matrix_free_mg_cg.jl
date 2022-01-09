@@ -176,6 +176,60 @@ function matrix_free_Two_level_multigrid(b_GPU,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
 end
 
 
+function matrix_free_Three_level_multigrid(b_GPU,b_2h_GPU,A_4h;nu=3,NUM_V_CYCLES=1,SBPp=2)
+    (Nx,Ny) = size(b_GPU)
+    level = Int(log(2,Nx-1))
+    (Nx_2h,Ny_2h) = div.((Nx,Ny) .+ 1,2)
+    (Nx_3h,Ny_3h) = div.((Nx_2h,Ny_2h) .+ 1,2)
+    # (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp)
+    v_values_GPU = Dict(1=>CuArray(zeros(Nx,Ny)))
+    v_values_GPU[2] = CuArray(zeros(Nx_2h,Ny_2h))
+
+    v_values_out_GPU = Dict(1=>CuArray(zeros(Nx,Ny)))
+    v_values_out_GPU[2] = CuArray(zeros(Nx_2h,Ny_2h))
+
+    Av_values_out_GPU = Dict(1=>CuArray(zeros(Nx,Ny)))
+    Av_values_out_GPU[2] = CuArray(zeros(Nx_2h,Ny_2h))
+    rhs_values_GPU = Dict(1=>b_GPU)
+    rhs_values_GPU[2] = CuArray(zeros(Nx_2h,Ny_2h))
+    rhs_values_GPU[3] = CuArray(zeros(Nx_4h,Ny_4h))
+
+    N_values = Dict(1=>Nx)
+    N_values[2] = div(Nx+1,2)
+    f_GPU = Dict(1=>CuArray(zeros(Nx_2h,Ny_2h)))
+    f_GPU[2] = CuArray(zeros(Nx_3h,Ny_3h))
+
+    e_GPU = Dict(1=>CuArray(zeros(Nx,Ny)))
+    e_GPU[2] = CuArray(zeros(Nx_2h,Ny_2h))
+    
+    for cycle_number in 1:NUM_V_CYCLES
+        matrix_free_richardson(v_values_GPU[1],v_values_out_GPU[1],rhs_values_GPU[1];maxiter=nu)
+        matrix_free_A_full_GPU(v_values_out_GPU[1],Av_values_out_GPU[1])
+        r_h_GPU = b_GPU + Av_values_out_GPU[1]
+
+        matrix_free_restriction_2d_GPU(r_h_GPU,rhs_values_GPU[2])
+
+        matrix_free_richardson(v_values_GPU[2],v_values_out_GPU[2],rhs_values_GPU[2];maxiter=nu)
+        matrix_free_A_full_GPU(v_values_out_GPU[2],Av_values_out_GPU[2])
+
+        r_2h_GPU = b_2h_GPU + Av_values_out_GPU[2]
+        matrix_free_restriction_2d_GPU(r_2h_GPU,rhs_values_GPU[3])
+
+        v_values_GPU[3] = reshape(CuArray(A_4h \ Array(rhs_values_GPU[3][:])),Nx_4h,Ny_4h)
+
+        # matrix_free_richardson(v_values_out_GPU[2],v_values_GPU[2],f_GPU[1];maxiter=20)
+
+        matrix_free_prolongation_2d_GPU(v_values_GPU[3],e_GPU[2])
+        v_values_out_GPU[2] += e_GPU[2]
+        matrix_free_richardson(v_values_GPU[2],v_values_out_GPU[2],rhs_values_GPU[2];maxiter=nu)
+        matrix_free_prolongation_2d_GPU(v_values_GPU[2],e_GPU[1])
+        v_values_out_GPU[1] += e_GPU[1]
+        matrix_free_richardson(v_values_GPU[1],v_values_out_GPU[1],rhs_values_GPU[1];maxiter=nu)
+    end
+    matrix_free_A_full_GPU(v_values_out_GPU[1],Av_values_out_GPU[1])
+    return (v_values_out_GPU[1],norm(-Av_values_out_GPU[1]-b_GPU))
+end
+
 function matrix_free_MGCG(b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,SBPp=2)
     (Nx,Ny) = size(b_GPU)
     level = Int(log(2,Nx-1))
@@ -225,7 +279,9 @@ end
 function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     (A,b,H_tilde,Nx,Ny) = Assembling_matrix(level,p=SBPp);
     (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp);
+    (A_4h,b_4h,H_tilde_4h,Nx_4h,Ny_4h) = Assembling_matrix(level-2,p=SBPp);
     A_2h_lu = lu(A_2h)
+    A_4h_lu = lu(A_4h)
     direct_sol = A\b
     reltol = sqrt(eps(real(eltype(b))))
     x = zeros(Nx*Ny);
@@ -233,6 +289,8 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
 
     x_GPU = CuArray(zeros(Nx,Ny))
     b_GPU = CuArray(reshape(b,Nx,Ny))
+
+    b_2h_GPU = CuArray(reshape(b_2h,Nx_2h,Ny_2h))
 
 
     A_GPU_sparse = CUDA.CUSPARSE.CuSparseMatrixCSC(A)
@@ -249,8 +307,17 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
 
     norms_CG_GPU, history = cg(A_GPU_sparse,b_GPU_sparse,abstol=abstol,log=true)
 
+    # 3-level multigrid
+    x_3mg, norm_3mg = Three_level_multigrid(A,b,A_2h,b_2h,A_4h,b_4h,Nx,Ny;nu=3,NUM_V_CYCLES=1,SBPp=2)
+
+    # 2-level multigrid
+    x_2mg, norm_2mg = Two_level_multigrid(A,b,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
 
     REPEAT = 1
+
+
+    # 3-level multigrid GPU 
+    matrix_free_Three_level_multigrid(b_GPU,b_2h_GPU,A_4h;nu=3,NUM_V_CYCLES=1,SBPp=2)
 
     t_matrix_free_MGCG_GPU = @elapsed for _ in 1:REPEAT
         x_GPU = CuArray(zeros(Nx,Ny))

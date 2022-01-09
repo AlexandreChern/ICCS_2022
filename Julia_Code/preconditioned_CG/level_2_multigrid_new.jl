@@ -380,6 +380,49 @@ function Two_level_multigrid(A,b,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
     return (v_values[1],norm(A * v_values[1] - b))
 end
 
+
+function Three_level_multigrid(A,b,A_2h,b_2h,A_4h,b_4h,Nx,Ny;nu=3,NUM_V_CYCLES=1,SBPp=2)
+    v_values = Dict(1=>zeros(Nx*Ny))
+    Nx_2h = Ny_2h = div(Nx+1,2)
+    Nx_3h = Ny_3h = div(Nx_2h+1,2)
+
+    rhs_values = Dict(1 => b)
+    N_values = Dict(1 => Nx)
+    N_values[2] = Nx_2h
+    N_values[3] = Nx_3h
+
+    x = zeros(length(b));
+    v_values[1] = x
+    v_values[2] = zeros(Nx_2h*Ny_2h)
+    
+    for cycle_number in 1:NUM_V_CYCLES
+        # jacobi_brittany!(v_values[1],A,b;maxiter=nu);
+        modified_richardson!(v_values[1],A,b,maxiter=nu)
+        r_h = b - A*v_values[1];
+
+        rhs_values[2] = restriction_2d(Nx) * r_h;
+
+        modified_richardson!(v_values[2],A_2h,rhs_values[2],maxiter=nu)
+        r_2h = b_2h - A_2h * v_values[2]
+        rhs_values[3] = restriction_2d(Nx_2h) * r_2h
+
+        v_values[3] = A_4h \ rhs_values[3]
+
+        # println("Pass first part")
+
+        e_2 = prolongation_2d(N_values[3]) * v_values[3];
+        v_values[2] = v_values[2] + e_2;
+        # println("After coarse grid correction, norm(A*x-b): $(norm(A*v_values[1]-b))")
+        # jacobi_brittany!(v_values[1],A,b;maxiter=nu);
+        modified_richardson!(v_values[2],A_2h,rhs_values[2],maxiter=nu)
+        e_1 = prolongation_2d(N_values[2]) * v_values[2]
+        v_values[1] = v_values[1] + e_1
+        modified_richardson!(v_values[1],A,b,maxiter=nu)
+    end
+    return (v_values[1],norm(A * v_values[1] - b))
+end
+
+
 function Two_level_multigrid_GPU(A_GPU,b_GPU,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,SBPp=2)
     v_values = Dict(1=>CuArray(zeros(Nx*Ny)))
     rhs_values = Dict(1 => b_GPU)
