@@ -180,7 +180,7 @@ end
 function Three_level_multigrid(A,b,A_2h,b_2h,A_4h,b_4h,Nx,Ny;nu=3,NUM_V_CYCLES=1,SBPp=2)
     v_values = Dict(1=>zeros(Nx*Ny))
     Nx_2h = Ny_2h = div(Nx+1,2)
-    Nx_4h = N4_3h = div(Nx_2h+1,2)
+    Nx_4h = Ny_4h = div(Nx_2h+1,2)
 
     rhs_values = Dict(1 => b)
     N_values = Dict(1 => Nx)
@@ -241,7 +241,7 @@ function matrix_free_Three_level_multigrid(b_GPU,A_4h;nu=3,NUM_V_CYCLES=1,SBPp=2
     N_values[2] = Nx_2h
     N_values[3] = Nx_4h
     f_GPU = Dict(1=>CuArray(zeros(Nx_2h,Ny_2h)))
-    f_GPU[2] = CuArray(zeros(Nx_3h,Ny_3h))
+    f_GPU[2] = CuArray(zeros(Nx_4h,Ny_4h))
 
     e_GPU = Dict(1=>CuArray(zeros(Nx,Ny)));
     e_GPU[2] = CuArray(zeros(Nx_2h,Ny_2h));
