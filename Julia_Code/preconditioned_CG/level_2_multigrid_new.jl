@@ -345,7 +345,7 @@ end
 
 function modified_richardson!(x,A,b;maxiter=3,ω=0.15)
     for _ in 1:maxiter
-        x[:] = x[:] + ω*(b .- A*x[:])
+        x[:] .= x[:] + ω*(b .- A*x[:])
     end
 end
 
@@ -436,7 +436,8 @@ function precond_matrix(A, b, A_2h; m=3, solver="jacobi")
     elseif solver == "richardson"
         ω =ω_richardson
         H = IN - ω*A
-        R = ω*IN
+        # R = ω*IN
+        R = spzeros(N,N)
         R0 = ω*IN
     elseif solver == "richardson_chebyshev" #TODO: FIX ME FOR CHEB
         ω =ω_richardson
@@ -461,7 +462,17 @@ function precond_matrix(A, b, A_2h; m=3, solver="jacobi")
     
     I_p = standard_prolongation_matrix_2D(length(b_2h))
     M = H^m * (R + I_p * (A_2h\Matrix(I_r*(IN - A * R)))) + R
-   
+    M_alternative = R + R + I_p * (A_2h \ Matrix(I_r * (IN - A*R)))
+    
+    M_v0 = I_p * (A_2h \ Matrix(I_r)) # No richardson iteration
+    M_v1_no_post = ω*IN + I_p * (A_2h \ Matrix(I_r * (IN - ω*A)))
+
+    M_v1 = (IN - ω*A)*(ω*IN + I_p * (A_2h \ Matrix(I_r * (IN - ω*A)))) + ω*IN # one pre and post richardson iteration
+
+    M_v1_alternative = H * (R0 + I_p * (A_2h \ Matrix(I_r * H))) + R0 # alternative form
+
+    M_test = H^m * R + H * (I_p * (A_2h \ Matrix(I_r * H))) + R # need to change, a generalized representation of M for richardson iteration
+
     return (M, R, H, I_p, A_2h, I_r, IN)
 end
 
