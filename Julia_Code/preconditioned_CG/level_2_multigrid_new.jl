@@ -436,8 +436,8 @@ function precond_matrix(A, b, A_2h; m=3, solver="jacobi")
     elseif solver == "richardson"
         ω =ω_richardson
         H = IN - ω*A
-        # R = ω*IN
-        R = spzeros(N,N)
+        R = ω*IN
+        # R = spzeros(N,N)
         R0 = ω*IN
     elseif solver == "richardson_chebyshev" #TODO: FIX ME FOR CHEB
         ω =ω_richardson
@@ -471,9 +471,10 @@ function precond_matrix(A, b, A_2h; m=3, solver="jacobi")
 
     M_v1_alternative = H * (R0 + I_p * (A_2h \ Matrix(I_r * H))) + R0 # alternative form
 
-    M_test = H^m * R + H * (I_p * (A_2h \ Matrix(I_r * H))) + R # need to change, a generalized representation of M for richardson iteration
+    M_test = H^m * R + R + H^m * (I_p * (A_2h \ Matrix(I_r * H^m))) # need to change, a generalized representation of M for richardson iteration
 
-    return (M, R, H, I_p, A_2h, I_r, IN)
+    # return (M, R, H, I_p, A_2h, I_r, IN)
+    return (M_test,R,H,I_p,A_2h,I_r,IN)
 end
 
 function mg_preconditioned_CG(A,b,x;A_2h = A_2h_lu,maxiter=length(b),abstol=sqrt(eps(real(eltype(b)))),NUM_V_CYCLES=1,nu=3,use_galerkin=true,direct_sol=0,H_tilde=0,SBPp=2)
@@ -579,7 +580,7 @@ function test_preconditioned_CG(;level=level,nu=3,ω=2/3,SBPp=2)
     h = 1/(Nx-1)
     ω_richardson = 0.15
     p = SBPp
-    (M, R, H, I_p, A_2h, I_r, IN) = precond_matrix(A,b,A_2h;m=nu,solver="jacobi")
+    (M, R, H, I_p, A_2h, I_r, IN) = precond_matrix(A,b,A_2h;m=nu,solver="richardson")
 
     cond_A_M = cond(M*A)
     x = zeros(Nx*Ny);
@@ -600,7 +601,7 @@ function test_preconditioned_CG(;level=level,nu=3,ω=2/3,SBPp=2)
     plot!(log.(10,error_cg_bound),label="error_cg_bound", linecolor = "darksalmon")
 
 
-    savefig("convergence.png")
+    savefig("convergence_richardson.png")
     # my_solver = "jacobi"
     # x0 = zeros(Nx*Ny)
     # (E_mgcg, num_iter_steps_mgcg, norms_mgcg) = MGCG!(A,b,x0,H_tilde,direct_sol,my_solver;smooth_steps = nu,maxiter=20000,abstol=abstol)
