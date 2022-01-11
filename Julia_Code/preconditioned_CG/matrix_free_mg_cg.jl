@@ -369,6 +369,61 @@ function matrix_free_MGCG_Three_level(b_GPU,x_GPU;A_4h = A_4h_lu,maxiter=length(
 end
 
 
+function precond_matrix(A, b; m=3, solver="jacobi")
+    #pre and post smoothing 
+    N = length(b)
+    IN = sparse(Matrix(I, N, N))
+    P = Diagonal(diag(A))
+    Pinv = Diagonal(1 ./ diag(A))
+    Q = P-A
+    L = A - triu(A)
+    U = A - tril(A)
+
+    if solver == "jacobi"
+       ω = 2/3
+        H = ω*Pinv*Q + (1-ω)*IN 
+        R = ω*Pinv 
+        R0 = ω*Pinv 
+    elseif solver == "ssor"
+        ω = 1.4  #this is just a guess. Need to compute ω_optimal (from jacobi method)
+        B1 = (P + ω*U)\Matrix(-ω*L + (1-ω)*P)
+        B2 = (P + ω*L)\Matrix(-ω*U + (1-ω)*P) 
+        H = B1*B2
+        X = (P+ω*L)\Matrix(IN)
+   
+        R = ω*(2-ω)*(P+ω*U)\Matrix(P*X)
+        R0 = ω*(2-ω)*(P+ω*U)\Matrix(P*X)
+    elseif solver == "richardson"
+        ω =ω_richardson
+        H = IN - ω*A
+        R = ω*IN
+        R0 = ω*IN
+    elseif solver == "richardson_chebyshev" #TODO: FIX ME FOR CHEB
+        ω =ω_richardson
+        H = IN - ω*A
+        R = ω*IN
+        R0 = ω*IN
+    elseif solver == "chebyshev" #TODO: FIX ME FOR CHEB
+        ω =ω_richardson
+        H = IN - ω*A
+        R = ω*IN
+        R0 = ω*IN
+    else   
+    end
+
+    for i = 1:m-1
+        R += H^i * R0
+    end
+
+    (A_2h, b_2h, x_2h, H1_2h) = get_operators(p, 2*h);
+    I_r = standard_restriction_matrix_2D(N)
+    
+    I_p = standard_prolongation_matrix_2D(length(b_2h))
+    M = H^m * (R + I_p * (A_2h\Matrix(I_r*(IN - A * R)))) + R
+   
+    return (M, R, H, I_p, A_2h, I_r, IN)
+end
+
 function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
     (A,b,H_tilde,Nx,Ny) = Assembling_matrix(level,p=SBPp);
     (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp);
