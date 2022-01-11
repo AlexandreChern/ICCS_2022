@@ -1,4 +1,5 @@
 include("../diagonal_sbp.jl")
+include("legacy_functions.jl")
 
 if length(ARGS) != 0
     level = parse(Int,ARGS[1])
@@ -408,11 +409,9 @@ function Two_level_multigrid_GPU(A_GPU,b_GPU,Nx,Ny,A_2h;nu=3,NUM_V_CYCLES=1,SBPp
     return (v_values[1],norm(A_GPU * v_values[1] - b_GPU))
 end
 
-function precond_matrix(A, b; m=3, solver="jacobi",SBPp=2)
+function precond_matrix(A, b, A_2h; m=3, solver="jacobi")
     #pre and post smoothing 
     N = length(b)
-    Nx = Ny = Integer((sqrt(N)))
-    level = Integer(log(2,Nx-1))
     IN = sparse(Matrix(I, N, N))
     P = Diagonal(diag(A))
     Pinv = Diagonal(1 ./ diag(A))
@@ -421,7 +420,7 @@ function precond_matrix(A, b; m=3, solver="jacobi",SBPp=2)
     U = A - tril(A)
 
     if solver == "jacobi"
-        ω = 2/3
+       ω = 2/3
         H = ω*Pinv*Q + (1-ω)*IN 
         R = ω*Pinv 
         R0 = ω*Pinv 
@@ -434,23 +433,34 @@ function precond_matrix(A, b; m=3, solver="jacobi",SBPp=2)
    
         R = ω*(2-ω)*(P+ω*U)\Matrix(P*X)
         R0 = ω*(2-ω)*(P+ω*U)\Matrix(P*X)
-    elseif solver == "modified_richardson"
-        # wait to be implemented
+    elseif solver == "richardson"
+        ω =ω_richardson
+        H = IN - ω*A
+        R = ω*IN
+        R0 = ω*IN
+    elseif solver == "richardson_chebyshev" #TODO: FIX ME FOR CHEB
+        ω =ω_richardson
+        H = IN - ω*A
+        R = ω*IN
+        R0 = ω*IN
+    elseif solver == "chebyshev" #TODO: FIX ME FOR CHEB
+        ω =ω_richardson
+        H = IN - ω*A
+        R = ω*IN
+        R0 = ω*IN
     else   
-        # wait to be implemented
     end
 
     for i = 1:m-1
         R += H^i * R0
     end
 
-    # (A_2h, b_2h, x_2h, H1_2h) = get_operators(p, 2*h);
-    (A_2h,b_2h,H_tilde_2h,Nx_2h,Ny_2h) = Assembling_matrix(level-1,p=SBPp)
-    I_r = restriction_2d(Nx)
+    # (A_2h, b_2h, x_2h, H1_2h) = get_operators(SBPp, 2*h);
+    A_2h = A_2h
+    I_r = standard_restriction_matrix_2D(N)
     
-    I_p = prolongation_2d(Nx_2h)
-    # M = H^m * (R + I_p * (A_2h\Matrix(I_r*(IN - A * R)))) + R
-    M = H^m * (R - I_p * (A_2h\Matrix(I_r*(A * R - IN)))) + R
+    I_p = standard_prolongation_matrix_2D(length(b_2h))
+    M = H^m * (R + I_p * (A_2h\Matrix(I_r*(IN - A * R)))) + R
    
     return (M, R, H, I_p, A_2h, I_r, IN)
 end
@@ -555,26 +565,31 @@ function test_preconditioned_CG(;level=level,nu=3,ω=2/3,SBPp=2)
     reltol = sqrt(eps(real(eltype(b))))
     x = zeros(Nx*Ny);
     abstol = norm(A*x-b) * reltol
+    h = 1/(Nx-1)
+    ω_richardson = 0.15
+    p = SBPp
+    (M, R, H, I_p, A_2h, I_r, IN) = precond_matrix(A,b,A_2h;m=nu,solver="jacobi")
 
-    (M, R, H, I_p, A_2h, I_r, IN) = precond_matrix(A,b;m=nu,solver="jacobi")
     cond_A_M = cond(M*A)
     x = zeros(Nx*Ny);
     iter_mg_cg, norm_mg_cg, error_mg_cg = mg_preconditioned_CG(A,b,x;A_2h = A_2h_lu, maxiter=length(b),abstol=abstol,NUM_V_CYCLES=1,nu=nu,use_galerkin=true,direct_sol=direct_sol,H_tilde=H_tilde,SBPp=SBPp)
     error_mg_cg_bound_coef = (sqrt(cond_A_M) - 1) / (sqrt(cond_A_M) + 1)
     error_mg_cg_bound = error_mg_cg[1] .* 2 .* error_mg_cg_bound_coef .^ (0:1:length(error_mg_cg)-1)
-    plot(log.(10,error_mg_cg),label="error_mg_cg")
-    plot!(log.(10,error_mg_cg_bound),label="error_mg_cg_bound")
+    scatter(log.(10,error_mg_cg),label="error_mg_cg", markercolor = "darkblue")
+    plot!(log.(10,error_mg_cg_bound),label="error_mg_cg_bound",linecolor = "darkblue")
 
 
     cond_A = cond(Matrix(A))
     x0 = zeros(Nx*Ny)
     (E_cg, num_iter_steps_cg, norms_cg) = regularCG!(A,b,x0,H_tilde,direct_sol;maxiter=20000,abstol=abstol)
 
-    plot!(log.(10,E_cg),label="error_cg")
+    scatter!(log.(10,E_cg),label="error_cg", markercolor = "darksalmon")
     error_cg_bound_coef = (sqrt(cond_A) - 1) / (sqrt(cond_A) + 1)
     error_cg_bound = E_cg[1] .* 2 .* error_cg_bound_coef .^ (0:1:length(E_cg)-1)
-    plot!(log.(10,error_cg_bound),label="error_cg_bound")
+    plot!(log.(10,error_cg_bound),label="error_cg_bound", linecolor = "darksalmon")
 
+
+    savefig("convergence.png")
     # my_solver = "jacobi"
     # x0 = zeros(Nx*Ny)
     # (E_mgcg, num_iter_steps_mgcg, norms_mgcg) = MGCG!(A,b,x0,H_tilde,direct_sol,my_solver;smooth_steps = nu,maxiter=20000,abstol=abstol)

@@ -415,7 +415,7 @@ function precond_matrix(A, b; m=3, solver="jacobi")
         R += H^i * R0
     end
 
-    (A_2h, b_2h, x_2h, H1_2h) = get_operators(p, 2*h);
+    (A_2h, b_2h, x_2h, H1_2h) = get_operators(SBPp, 2*h);
     I_r = standard_restriction_matrix_2D(N)
     
     I_p = standard_prolongation_matrix_2D(length(b_2h))
@@ -437,6 +437,10 @@ function test_matrix_free_MGCG(;level=6,nu=3,ω=2/3,SBPp=2)
 
     x_GPU = CuArray(zeros(Nx,Ny))
     b_GPU = CuArray(reshape(b,Nx,Ny))
+
+    ω_richardson = 0.15
+    h = 1/(Nx-1)
+    (M,R,H,I_p,_,I_r,IN) = precond_matrix(A,b,m=3,solver="richardson")
 
     num_iter_steps_matrix_free_GPU, norms_matrix_free_GPU = matrix_free_MGCG(b_GPU,x_GPU;A_2h = A_2h_lu,maxiter=length(b_GPU),abstol=abstol,nu=nu)
 
