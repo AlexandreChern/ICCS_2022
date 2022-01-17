@@ -588,6 +588,8 @@ function test_preconditioned_CG(;level=level,nu=3,ω=2/3,SBPp=2)
     error_mg_cg_bound_coef = (sqrt(cond_A_M) - 1) / (sqrt(cond_A_M) + 1)
     error_mg_cg_bound = error_mg_cg[1] .* 2 .* error_mg_cg_bound_coef .^ (0:1:length(error_mg_cg)-1)
     scatter(log.(10,error_mg_cg),label="error_mg_cg", markercolor = "darkblue")
+    xlabel!("Iterations")
+    ylabel!("Log errors, base 10")
     plot!(log.(10,error_mg_cg_bound),label="error_mg_cg_bound",linecolor = "darkblue")
 
 
